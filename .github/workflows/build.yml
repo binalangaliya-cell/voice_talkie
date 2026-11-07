@@ -9,27 +9,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
         with:
-          flutter-version: '3.19.0'
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
           channel: 'stable'
+          cache: true
 
-      - name: Create basic Flutter skeleton
+      - name: Generate Android Skeleton
         run: |
-          flutter create --org com.voicetalkie temp_app
-          cp -r temp_app/android ./android || true
-          cp -r temp_app/ios ./ios || true
+          flutter create . --platforms=android --org com.voicetalkie
+          flutter pub get
 
-      - name: Get Dependencies
-        run: flutter pub get
+      - name: Build Android Release APK
+        run: flutter build apk --release --no-tree-shake-icons
 
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: voice-talkie-app
+          name: voice-talkie-apk
           path: build/app/outputs/flutter-apk/app-release.apk
