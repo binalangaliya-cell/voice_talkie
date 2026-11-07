@@ -1,0 +1,17 @@
+name: voice_talkie
+description: "Voice Talkie Offline Mesh"
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_sound: ^9.2.13
+  permission_handler: ^11.3.1
+  path_provider: ^2.1.2
+
+flutter:
+  uses-material-design: true
