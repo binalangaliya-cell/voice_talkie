@@ -2,11 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter_sound/flutter_sound.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MaterialApp(
     debugShowCheckedModeBanner: false,
     home: VoiceTalkieApp(),
@@ -25,10 +22,6 @@ class _VoiceTalkieAppState extends State<VoiceTalkieApp> {
   static const int multicastPort = 8888;
 
   RawDatagramSocket? _socket;
-  final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
-  final FlutterSoundPlayer _player = FlutterSoundPlayer();
-  StreamController<Food>? _audioStreamController;
-
   bool _isTalking = false;
   bool _isReceiving = false;
   int _peersCount = 0;
@@ -37,14 +30,10 @@ class _VoiceTalkieAppState extends State<VoiceTalkieApp> {
   @override
   void initState() {
     super.initState();
-    _startSystem();
+    _initNetwork();
   }
 
-  Future<void> _startSystem() async {
-    await [Permission.microphone, Permission.bluetoothConnect].request();
-    await _recorder.openRecorder();
-    await _player.openPlayer();
-
+  Future<void> _initNetwork() async {
     try {
       _socket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -82,59 +71,26 @@ class _VoiceTalkieAppState extends State<VoiceTalkieApp> {
         });
       }
     } else if (type == 0x02 && !_isTalking) {
-      _playAudio(dg.data.sublist(1));
-    }
-  }
-
-  void _playAudio(Uint8List audio) async {
-    if (!_player.isPlaying) {
       setState(() => _isReceiving = true);
-      await _player.startPlayerFromStream(
-        codec: Codec.pcm16,
-        numChannels: 1,
-        sampleRate: 16000,
-      );
+      Timer(const Duration(milliseconds: 400), () {
+        if (mounted) setState(() => _isReceiving = false);
+      });
     }
-    _player.foodSink?.add(FoodData(audio));
-    Timer(const Duration(milliseconds: 350), () {
-      if (mounted) setState(() => _isReceiving = false);
-    });
   }
 
-  Future<void> _talk() async {
-    if (_recorder.isRecording) return;
+  void _startTalk() {
     setState(() => _isTalking = true);
-
-    _audioStreamController = StreamController<Food>();
-    _audioStreamController?.stream.listen((food) {
-      if (food is FoodData && food.data != null) {
-        Uint8List packet = Uint8List(food.data!.length + 1);
-        packet[0] = 0x02;
-        packet.setRange(1, packet.length, food.data!);
-        _socket?.send(packet, InternetAddress(multicastAddress), multicastPort);
-      }
-    });
-
-    await _recorder.startRecorder(
-      toStream: _audioStreamController?.sink,
-      codec: Codec.pcm16,
-      numChannels: 1,
-      sampleRate: 16000,
-    );
+    Uint8List ping = Uint8List.fromList([0x02]);
+    _socket?.send(ping, InternetAddress(multicastAddress), multicastPort);
   }
 
-  Future<void> _stopTalk() async {
-    if (!_isTalking) return;
-    await _recorder.stopRecorder();
-    await _audioStreamController?.close();
+  void _stopTalk() {
     setState(() => _isTalking = false);
   }
 
   @override
   void dispose() {
     _socket?.close();
-    _recorder.closeRecorder();
-    _player.closePlayer();
     super.dispose();
   }
 
@@ -166,7 +122,7 @@ class _VoiceTalkieAppState extends State<VoiceTalkieApp> {
             ),
             const SizedBox(height: 40),
             GestureDetector(
-              onTapDown: (_) => _talk(),
+              onTapDown: (_) => _startTalk(),
               onTapUp: (_) => _stopTalk(),
               onTapCancel: () => _stopTalk(),
               child: Container(
